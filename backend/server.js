@@ -16,6 +16,11 @@ dotenv.config();
 
 // OpenAI client'ı başlat
 let openai = null;
+console.log('🔍 Environment variables kontrol ediliyor...');
+console.log('🔍 OPENAI_API_KEY var mı:', !!process.env.OPENAI_API_KEY);
+console.log('🔍 OPENAI_API_KEY uzunluğu:', process.env.OPENAI_API_KEY ? process.env.OPENAI_API_KEY.length : 0);
+console.log('🔍 OPENAI_API_KEY başlangıcı:', process.env.OPENAI_API_KEY ? process.env.OPENAI_API_KEY.substring(0, 10) : 'YOK');
+
 if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY.startsWith('sk-')) {
   openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
@@ -24,6 +29,7 @@ if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY.startsWith('sk-')) 
   console.log('🔑 API Key:', process.env.OPENAI_API_KEY.substring(0, 10) + '...');
 } else {
   console.log('⚠️ OpenAI API key bulunamadı - sadece WebSocket çalışacak');
+  console.log('🔍 API Key durumu:', process.env.OPENAI_API_KEY ? 'Var ama geçersiz' : 'Yok');
 }
 
 // Multer konfigürasyonu (ses dosyaları için)
@@ -77,7 +83,10 @@ async function transcribeAudio(audioFile, retries = 3) {
         file: fs.createReadStream(audioFile),
         model: "whisper-1",
         language: "auto", // Otomatik dil tespiti
-        timeout: 30000, // 30 saniye timeout
+        timeout: 60000, // 60 saniye timeout
+      }, {
+        timeout: 60000, // Request timeout
+        maxRetries: 0, // Manual retry logic kullanıyoruz
       });
       
       console.log(`✅ Whisper başarılı (deneme ${attempt})`);
