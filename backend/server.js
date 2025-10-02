@@ -394,9 +394,10 @@ function generateTranslationId() {
 
 const PORT = process.env.PORT || 3002;
 
-server.listen(PORT, () => {
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server çalışıyor!`);
-  console.log(`📡 HTTP: http://localhost:${PORT}`);
-  console.log(`🔌 WebSocket: ws://localhost:${PORT}`);
+  console.log(`📡 HTTP: http://0.0.0.0:${PORT}`);
+  console.log(`🔌 WebSocket: ws://0.0.0.0:${PORT}`);
+  console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`\n✨ Tarayıcıda test et: http://localhost:${PORT}`);
 });
