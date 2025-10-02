@@ -126,7 +126,7 @@ async function translateText(text, targetLanguage, retries = 3) {
         : "You are a professional translator. Translate the given Turkish text into natural and fluent English. Only return the translation, no explanations.";
 
       const completion = await openai.chat.completions.create({
-        model: "gpt-4",
+        model: "gpt-3.5-turbo",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: text }
