@@ -1,0 +1,26 @@
+{
+  "name": "live-translation-app",
+  "version": "1.0.0",
+  "description": "Real-time conference translation system",
+  "main": "backend/server.js",
+  "scripts": {
+    "start": "cd backend && node server.js",
+    "dev": "cd backend && node server.js",
+    "build": "echo 'Backend only - no frontend build needed'",
+    "install-all": "npm install && cd backend && npm install"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "ws": "^8.14.2",
+    "openai": "^4.20.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "multer": "^1.4.5-lts.1"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
