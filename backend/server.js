@@ -51,12 +51,12 @@ app.use(express.json());
 app.use(express.static('uploads')); // Upload edilen dosyaları serve et
 
 // Frontend dosyalarını serve et (production için)
-app.use(express.static('../live-translation-frontend/dist'));
+// app.use(express.static('../live-translation-frontend/dist'));
 
 // SPA için tüm route'ları index.html'e yönlendir
-app.get('*', (req, res) => {
-  res.sendFile(path.join(process.cwd(), '../live-translation-frontend/dist/index.html'));
-});
+// app.get('*', (req, res) => {
+//   res.sendFile(path.join(process.cwd(), '../live-translation-frontend/dist/index.html'));
+// });
 
 // Test endpoint
 app.get('/', (req, res) => {
