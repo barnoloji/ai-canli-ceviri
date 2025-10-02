@@ -6,7 +6,7 @@
   "scripts": {
     "start": "cd backend && node server.js",
     "dev": "cd backend && node server.js",
-    "build": "cd live-translation-frontend && npm install && npm run build",
+    "build": "echo 'Backend only - frontend build disabled'",
     "install-all": "npm install && cd backend && npm install"
   },
   "dependencies": {
