@@ -64,48 +64,77 @@ app.get('/', (req, res) => {
 });
 
 // OpenAI API fonksiyonları
-async function transcribeAudio(audioFile) {
+async function transcribeAudio(audioFile, retries = 3) {
   if (!openai) {
     throw new Error('OpenAI API key bulunamadı');
   }
   
-  try {
-    const transcription = await openai.audio.transcriptions.create({
-      file: fs.createReadStream(audioFile),
-      model: "whisper-1",
-      language: "auto", // Otomatik dil tespiti
-    });
-    return transcription.text;
-  } catch (error) {
-    console.error('Whisper transcription error:', error);
-    throw new Error('Ses çevirme hatası: ' + error.message);
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      console.log(`🎯 Whisper deneme ${attempt}/${retries}...`);
+      
+      const transcription = await openai.audio.transcriptions.create({
+        file: fs.createReadStream(audioFile),
+        model: "whisper-1",
+        language: "auto", // Otomatik dil tespiti
+        timeout: 30000, // 30 saniye timeout
+      });
+      
+      console.log(`✅ Whisper başarılı (deneme ${attempt})`);
+      return transcription.text;
+    } catch (error) {
+      console.error(`❌ Whisper deneme ${attempt} başarısız:`, error.message);
+      
+      if (attempt === retries) {
+        throw new Error('Ses çevirme hatası: ' + error.message);
+      }
+      
+      // Exponential backoff
+      const delay = Math.pow(2, attempt) * 1000;
+      console.log(`⏳ ${delay}ms bekleyip tekrar denenecek...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
   }
 }
 
-async function translateText(text, targetLanguage) {
+async function translateText(text, targetLanguage, retries = 3) {
   if (!openai) {
     throw new Error('OpenAI API key bulunamadı');
   }
   
-  try {
-    const systemPrompt = targetLanguage === 'tr' 
-      ? "Sen bir profesyonel çevirmensin. Verilen İngilizce metni doğal ve akıcı Türkçe'ye çevir. Sadece çeviriyi döndür, açıklama yapma."
-      : "You are a professional translator. Translate the given Turkish text into natural and fluent English. Only return the translation, no explanations.";
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      console.log(`🌐 Çeviri deneme ${attempt}/${retries}...`);
+      
+      const systemPrompt = targetLanguage === 'tr' 
+        ? "Sen bir profesyonel çevirmensin. Verilen İngilizce metni doğal ve akıcı Türkçe'ye çevir. Sadece çeviriyi döndür, açıklama yapma."
+        : "You are a professional translator. Translate the given Turkish text into natural and fluent English. Only return the translation, no explanations.";
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: text }
-      ],
-      max_tokens: 1000,
-      temperature: 0.3,
-    });
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: text }
+        ],
+        max_tokens: 1000,
+        temperature: 0.3,
+        timeout: 30000, // 30 saniye timeout
+      });
 
-    return completion.choices[0].message.content.trim();
-  } catch (error) {
-    console.error('GPT translation error:', error);
-    throw new Error('Çeviri hatası: ' + error.message);
+      console.log(`✅ Çeviri başarılı (deneme ${attempt})`);
+      return completion.choices[0].message.content.trim();
+    } catch (error) {
+      console.error(`❌ Çeviri deneme ${attempt} başarısız:`, error.message);
+      
+      if (attempt === retries) {
+        throw new Error('Çeviri hatası: ' + error.message);
+      }
+      
+      // Exponential backoff
+      const delay = Math.pow(2, attempt) * 1000;
+      console.log(`⏳ ${delay}ms bekleyip tekrar denenecek...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
   }
 }
 
