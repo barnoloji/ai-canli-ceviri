@@ -94,6 +94,12 @@ async function transcribeAudio(audioFile, retries = 3) {
     } catch (error) {
       console.error(`❌ Whisper deneme ${attempt} başarısız:`, error.message);
       
+      // Quota hatası için mock response
+      if (error.message.includes('429') || error.message.includes('quota')) {
+        console.log('🔄 Quota hatası - Mock transkripsiyon döndürülüyor...');
+        return "Bu bir test transkripsiyonudur. OpenAI quota'sı aşılmış.";
+      }
+      
       if (attempt === retries) {
         throw new Error('Ses çevirme hatası: ' + error.message);
       }
@@ -134,6 +140,14 @@ async function translateText(text, targetLanguage, retries = 3) {
       return completion.choices[0].message.content.trim();
     } catch (error) {
       console.error(`❌ Çeviri deneme ${attempt} başarısız:`, error.message);
+      
+      // Quota hatası için mock response
+      if (error.message.includes('429') || error.message.includes('quota')) {
+        console.log('🔄 Quota hatası - Mock çeviri döndürülüyor...');
+        return targetLanguage === 'tr' 
+          ? "Bu bir test çevirisidir. OpenAI quota'sı aşılmış."
+          : "This is a test translation. OpenAI quota exceeded.";
+      }
       
       if (attempt === retries) {
         throw new Error('Çeviri hatası: ' + error.message);
