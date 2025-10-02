@@ -13,6 +13,7 @@ export default function ConferenceTranslation() {
   const [users, setUsers] = useState([]);
   const [translations, setTranslations] = useState([]);
   const [currentTranslation, setCurrentTranslation] = useState('');
+  const [audioLevel, setAudioLevel] = useState(0);
   
   // WebSocket ve ses
   const wsRef = useRef(null);
@@ -20,11 +21,34 @@ export default function ConferenceTranslation() {
   const audioChunksRef = useRef([]);
   const streamRef = useRef(null);
   const intervalRef = useRef(null);
+  const audioContextRef = useRef(null);
+  const analyserRef = useRef(null);
+  const dataArrayRef = useRef(null);
+  const isSpeakingRef = useRef(false);
+  const recognitionRef = useRef(null);
+
+  // Ses seviyesi kontrolü
+  const checkAudioLevel = () => {
+    if (!analyserRef.current || !dataArrayRef.current) return false;
+    
+    analyserRef.current.getByteFrequencyData(dataArrayRef.current);
+    const average = dataArrayRef.current.reduce((a, b) => a + b) / dataArrayRef.current.length;
+    
+    // Audio level'ı güncelle (görsel gösterim için)
+    setAudioLevel(Math.min(average, 100));
+    
+    // Debug için ses seviyesini logla
+    console.log('🔊 Ses seviyesi:', average);
+    
+    // Eşik değeri düşürüldü - daha hassas algılama
+    const threshold = 5;
+    return average > threshold;
+  };
 
   // WebSocket bağlantısı
   const connectWebSocket = () => {
     // HTTP kullanıyoruz, WS kullan
-    const wsUrl = 'wss://web-production-fc3b.up.railway.app';
+    const wsUrl = 'ws://localhost:3002';
     console.log('WebSocket bağlantısı kuruluyor:', wsUrl);
     wsRef.current = new WebSocket(wsUrl);
     
@@ -97,7 +121,90 @@ export default function ConferenceTranslation() {
     };
   };
 
-  // Ses kaydetme başlat
+  // Web Speech API ile ses tanıma
+  const startSpeechRecognition = () => {
+    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+      alert('Bu tarayıcı ses tanımayı desteklemiyor!');
+      return;
+    }
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    recognitionRef.current = new SpeechRecognition();
+    
+    recognitionRef.current.continuous = true;
+    recognitionRef.current.interimResults = true;
+    recognitionRef.current.lang = 'tr-TR'; // Türkçe
+    
+    recognitionRef.current.onstart = () => {
+      console.log('🎤 Ses tanıma başladı');
+      setIsSpeaking(true);
+    };
+    
+    recognitionRef.current.onresult = (event) => {
+      let finalTranscript = '';
+      
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        if (event.results[i].isFinal) {
+          finalTranscript += event.results[i][0].transcript;
+        }
+      }
+      
+      if (finalTranscript) {
+        console.log('📝 Tanınan metin:', finalTranscript);
+        
+        // Google Translate ile çeviri
+        translateText(finalTranscript);
+      }
+    };
+    
+    recognitionRef.current.onerror = (event) => {
+      console.error('Ses tanıma hatası:', event.error);
+    };
+    
+    recognitionRef.current.onend = () => {
+      console.log('🎤 Ses tanıma bitti');
+      setIsSpeaking(false);
+    };
+    
+    recognitionRef.current.start();
+  };
+
+  // Google Translate ile çeviri
+  const translateText = async (text) => {
+    try {
+      // Google Translate API kullanarak çeviri
+      const response = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=tr&tl=en&dt=t&q=${encodeURIComponent(text)}`);
+      const data = await response.json();
+      const translation = data[0][0][0];
+      
+      console.log('🔄 Çeviri:', translation);
+      
+      // Çeviriyi WebSocket ile gönder
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        const translationRecord = {
+          id: 'trans_' + Date.now(),
+          userId: 'user_' + Math.random().toString(36).substr(2, 9),
+          userName: userName,
+          originalText: text,
+          translatedText: translation,
+          timestamp: new Date().toISOString(),
+          language: 'tr'
+        };
+        
+        wsRef.current.send(JSON.stringify({
+          type: 'new_translation',
+          translation: translationRecord
+        }));
+        
+        setCurrentTranslation(translation);
+        setTranslations(prev => [...prev, translationRecord]);
+      }
+    } catch (error) {
+      console.error('Çeviri hatası:', error);
+    }
+  };
+
+  // Eski ses kaydetme fonksiyonu (artık kullanılmıyor)
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ 
@@ -109,6 +216,16 @@ export default function ConferenceTranslation() {
       });
       
       streamRef.current = stream;
+      
+      // Audio context ve analyser oluştur
+      audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+      analyserRef.current = audioContextRef.current.createAnalyser();
+      const source = audioContextRef.current.createMediaStreamSource(stream);
+      source.connect(analyserRef.current);
+      
+      analyserRef.current.fftSize = 256;
+      dataArrayRef.current = new Uint8Array(analyserRef.current.frequencyBinCount);
+      
       mediaRecorderRef.current = new MediaRecorder(stream, {
         mimeType: 'audio/webm;codecs=opus'
       });
@@ -123,39 +240,52 @@ export default function ConferenceTranslation() {
       
       mediaRecorderRef.current.start(1000); // Her 1 saniyede bir chunk
       
-      // Konuşmaya başladığını bildir
-      wsRef.current?.send(JSON.stringify({
-        type: 'start_speaking'
-      }));
-      
       setIsSpeaking(true);
+      isSpeakingRef.current = true;
       
-      // Ses parçalarını gönder
+      // Ses parçalarını kontrol et ve gönder
       intervalRef.current = setInterval(() => {
         if (audioChunksRef.current.length > 0) {
           const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-          audioChunksRef.current = [];
+          const hasAudio = checkAudioLevel();
           
-          console.log('Ses parçası gönderiliyor, boyut:', audioBlob.size);
+          console.log('Ses kontrolü - Seviye:', audioLevel, 'Boyut:', audioBlob.size, 'Ses var mı:', hasAudio);
           
-          // Base64'e çevir
-          const reader = new FileReader();
-          reader.onload = () => {
-            const base64 = reader.result.split(',')[1];
-            console.log('Base64 ses verisi hazır, boyut:', base64.length);
+          // Sadece ses seviyesi yeterliyse gönder
+          if (hasAudio) { // Minimum boyut kontrolü kaldırıldı
+            console.log('✅ Ses algılandı, parça gönderiliyor, boyut:', audioBlob.size);
             
-            if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-              wsRef.current.send(JSON.stringify({
-                type: 'audio_chunk',
-                audioData: base64,
-                roomId: roomId
+            // Konuşmaya başladığını bildir (sadece ilk kez)
+            if (!isSpeakingRef.current) {
+              wsRef.current?.send(JSON.stringify({
+                type: 'start_speaking'
               }));
-              console.log('Ses verisi WebSocket ile gönderildi');
-            } else {
-              console.error('WebSocket bağlantısı yok!');
+              isSpeakingRef.current = true;
             }
-          };
-          reader.readAsDataURL(audioBlob);
+            
+            // Base64'e çevir
+            const reader = new FileReader();
+            reader.onload = () => {
+              const base64 = reader.result.split(',')[1];
+              
+              if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                wsRef.current.send(JSON.stringify({
+                  type: 'audio_chunk',
+                  audioData: base64,
+                  roomId: roomId
+                }));
+                console.log('Ses verisi WebSocket ile gönderildi');
+              } else {
+                console.error('WebSocket bağlantısı yok!');
+              }
+            };
+            reader.readAsDataURL(audioBlob);
+          } else {
+            console.log('❌ Ses yetersiz veya boyut küçük, gönderilmiyor');
+          }
+          
+          // Her durumda chunk'ları temizle
+          audioChunksRef.current = [];
         }
       }, 1000);
       
@@ -165,26 +295,10 @@ export default function ConferenceTranslation() {
     }
   };
 
-  // Ses kaydetmeyi durdur
+  // Ses tanımayı durdur
   const stopRecording = () => {
-    if (mediaRecorderRef.current && isSpeaking) {
-      mediaRecorderRef.current.stop();
-      
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-      
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop());
-        streamRef.current = null;
-      }
-      
-      // Konuşmayı bitirdiğini bildir
-      wsRef.current?.send(JSON.stringify({
-        type: 'stop_speaking'
-      }));
-      
+    if (recognitionRef.current && isSpeaking) {
+      recognitionRef.current.stop();
       setIsSpeaking(false);
     }
   };
@@ -195,11 +309,8 @@ export default function ConferenceTranslation() {
       if (wsRef.current) {
         wsRef.current.close();
       }
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop());
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
       }
     };
   }, []);
@@ -231,62 +342,51 @@ export default function ConferenceTranslation() {
     if (isSpeaking) {
       stopRecording();
     } else {
-      startRecording();
+      startSpeechRecognition();
     }
   };
 
   if (!isLoggedIn) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-8">
-        <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md">
-          <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-gray-800 mb-2">Konferans Çeviri</h1>
-            <p className="text-gray-600">Odaya katılın ve anlık çeviri yapın</p>
+      <div className="login-container">
+        <div className="login-card">
+          <h1 className="login-title">🎤 Canlı Çeviri</h1>
+          <p className="login-subtitle">Odaya katılın ve anlık çeviri yapın</p>
+
+          <div className="input-group">
+            <label className="input-label">Adınız</label>
+            <input
+              type="text"
+              value={userName}
+              onChange={(e) => setUserName(e.target.value)}
+              placeholder="Adınızı girin"
+              className="input-field"
+            />
           </div>
 
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Adınız
-              </label>
-              <input
-                type="text"
-                value={userName}
-                onChange={(e) => setUserName(e.target.value)}
-                placeholder="Adınızı girin"
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Oda ID
-              </label>
-              <input
-                type="text"
-                value={roomId}
-                onChange={(e) => setRoomId(e.target.value)}
-                placeholder="Oda ID'sini girin"
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-
-            <button
-              onClick={handleLogin}
-              className="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
-            >
-              <LogIn size={20} />
-              Odaya Katıl
-            </button>
+          <div className="input-group">
+            <label className="input-label">Oda ID</label>
+            <input
+              type="text"
+              value={roomId}
+              onChange={(e) => setRoomId(e.target.value)}
+              placeholder="Oda ID'sini girin"
+              className="input-field"
+            />
           </div>
 
-          <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-            <h4 className="font-semibold text-blue-800 mb-2">💡 Nasıl Çalışır?</h4>
-            <ul className="text-sm text-blue-700 space-y-1">
-              <li>• Aynı oda ID'sini kullanan herkes aynı çeviriyi görür</li>
-              <li>• Mikrofon butonuna basıp konuşun</li>
-              <li>• Anlık çeviri tüm katılımcılara gönderilir</li>
-              <li>• Çeviri geçmişi altta görünür</li>
+          <button onClick={handleLogin} className="btn-primary">
+            <LogIn size={20} />
+            Odaya Katıl
+          </button>
+
+          <div className="info-card">
+            <h4 className="info-title">💡 Nasıl Çalışır?</h4>
+            <ul className="info-list">
+              <li>Aynı oda ID'sini kullanan herkes aynı çeviriyi görür</li>
+              <li>Mikrofon butonuna basıp konuşun</li>
+              <li>Anlık çeviri tüm katılımcılara gönderilir</li>
+              <li>Çeviri geçmişi altta görünür</li>
             </ul>
           </div>
         </div>
@@ -295,151 +395,155 @@ export default function ConferenceTranslation() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-800">Konferans Çeviri</h1>
-              <p className="text-gray-600">Oda: {roomId} • Kullanıcı: {userName}</p>
+    <div className="main-container">
+      {/* Header */}
+      <div className="app-header">
+        <div className="header-content">
+          <div>
+            <h1 className="app-title">🎤 Canlı Çeviri</h1>
+            <p className="app-subtitle">Oda: {roomId} • Kullanıcı: {userName}</p>
+          </div>
+          
+          <div className="flex items-center gap-4">
+            <div className={`status-indicator ${
+              isConnected ? 'status-connected' : 'status-disconnected'
+            }`}>
+              <div className={`status-dot ${
+                isConnected ? 'connected' : 'disconnected'
+              }`}></div>
+              {isConnected ? 'Bağlı' : 'Bağlantı Yok'}
             </div>
             
-            <div className="flex items-center gap-4">
-              <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-sm ${
-                isConnected ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-              }`}>
-                <div className={`w-2 h-2 rounded-full ${
-                  isConnected ? 'bg-green-500' : 'bg-red-500'
-                }`}></div>
-                {isConnected ? 'Bağlı' : 'Bağlantı Yok'}
-              </div>
-              <div className="text-xs text-gray-500">
-                WS: {wsRef.current?.readyState === WebSocket.OPEN ? 'Açık' : 'Kapalı'}
-              </div>
-              
-              <button
-                onClick={handleLogout}
-                className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
-              >
-                <LogOut size={16} />
-                Çıkış
-              </button>
-            </div>
+            <button onClick={handleLogout} className="btn-logout">
+              <LogOut size={16} />
+              Çıkış
+            </button>
           </div>
         </div>
+      </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Sol Panel - Kullanıcılar ve Mikrofon */}
-          <div className="lg:col-span-1 space-y-6">
-            {/* Kullanıcılar */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <div className="flex items-center gap-2 mb-4">
-                <Users size={20} className="text-blue-500" />
-                <h3 className="font-semibold text-gray-800">Katılımcılar ({users.length})</h3>
-              </div>
-              <div className="space-y-2">
-                {users.map((user) => (
-                  <div key={user.id} className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg">
-                    <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-semibold">
-                      {user.name.charAt(0).toUpperCase()}
-                    </div>
-                    <span className="text-gray-700">{user.name}</span>
+      <div className="main-grid">
+        {/* Sol Panel - Kullanıcılar ve Mikrofon */}
+        <div>
+          {/* Kullanıcılar */}
+          <div className="card">
+            <div className="card-header">
+              <Users className="card-icon" />
+              <h3 className="card-title">Katılımcılar ({users.length})</h3>
+            </div>
+            <div className="users-list">
+              {users.map((user) => (
+                <div key={user.id} className="user-item">
+                  <div className="user-avatar">
+                    {user.name.charAt(0).toUpperCase()}
                   </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Mikrofon Kontrolü */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <div className="text-center">
-                <button
-                  onClick={toggleMicrophone}
-                  disabled={!isConnected}
-                  className={`w-20 h-20 rounded-full flex items-center justify-center transition-all ${
-                    isSpeaking
-                      ? 'bg-red-500 hover:bg-red-600 text-white'
-                      : 'bg-blue-500 hover:bg-blue-600 text-white'
-                  } ${!isConnected ? 'opacity-50 cursor-not-allowed' : ''}`}
-                >
-                  {isSpeaking ? <MicOff size={32} /> : <Mic size={32} />}
-                </button>
-                <p className="mt-3 text-sm text-gray-600">
-                  {isSpeaking ? 'Konuşuyorsunuz...' : 'Konuşmak için tıklayın'}
-                </p>
-              </div>
+                  <span className="user-name">{user.name}</span>
+                </div>
+              ))}
             </div>
           </div>
 
-          {/* Orta Panel - Anlık Çeviri */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Anlık Çeviri */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <div className="flex items-center gap-2 mb-4">
-                <MessageSquare size={20} className="text-green-500" />
-                <h3 className="font-semibold text-gray-800">Anlık Çeviri</h3>
-              </div>
-              <div className="bg-green-50 rounded-lg p-4 min-h-[120px] flex items-center justify-center">
-                {currentTranslation ? (
-                  <p className="text-lg text-gray-800 text-center">{currentTranslation}</p>
-                ) : (
-                  <p className="text-gray-500 text-center">Çeviri burada görünecek...</p>
-                )}
-              </div>
-            </div>
-
-            {/* Çeviri Geçmişi */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <div className="flex items-center gap-2 mb-4">
-                <MessageSquare size={20} className="text-blue-500" />
-                <h3 className="font-semibold text-gray-800">Çeviri Geçmişi</h3>
-              </div>
-              <div className="space-y-3 max-h-96 overflow-y-auto">
-                {translations.length === 0 ? (
-                  <p className="text-gray-500 text-center py-8">Henüz çeviri yok</p>
-                ) : (
-                  translations.slice().reverse().map((translation) => (
-                    <div key={translation.id} className="border-l-4 border-blue-500 pl-4 py-2">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-sm font-medium text-blue-600">{translation.userName}</span>
-                        <span className="text-xs text-gray-500">
-                          {new Date(translation.timestamp).toLocaleTimeString()}
-                        </span>
-                      </div>
-                      <p className="text-sm text-gray-700 mb-1">{translation.originalText}</p>
-                      <p className="text-sm font-medium text-gray-800">{translation.translatedText}</p>
-                    </div>
-                  ))
-                )}
-              </div>
+          {/* Mikrofon Kontrolü */}
+          <div className="card">
+            <div className="mic-container">
+              <button
+                onClick={toggleMicrophone}
+                disabled={!isConnected}
+                className={`mic-button ${
+                  isSpeaking ? 'speaking' : 'not-speaking'
+                } ${!isConnected ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                {isSpeaking ? <MicOff className="mic-icon" /> : <Mic className="mic-icon" />}
+              </button>
+              <p className="mic-status">
+                {isSpeaking ? 'Konuşuyorsunuz...' : 'Konuşmak için tıklayın'}
+              </p>
+              
+              {/* Ses seviyesi göstergesi */}
+              {isSpeaking && (
+                <div className="audio-level-container">
+                  <div className="audio-level-label">Ses Seviyesi</div>
+                  <div className="audio-level-bar">
+                    <div 
+                      className={`audio-level-fill ${
+                        audioLevel > 5 ? '' : 'low'
+                      }`}
+                      style={{ width: `${Math.min(audioLevel, 100)}%` }}
+                    ></div>
+                  </div>
+                  <div className="audio-level-status">
+                    {audioLevel > 5 ? 'Ses algılandı' : 'Ses bekleniyor...'}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
 
-        {/* Alt Bilgi */}
-        <div className="mt-6 bg-white rounded-xl shadow-lg p-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
-            <div className="flex flex-col items-center">
-              <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mb-2">
-                <span className="text-2xl">🎤</span>
-              </div>
-              <h4 className="font-semibold text-gray-800 mb-1">Ses Yakalama</h4>
-              <p className="text-sm text-gray-600">Gerçek zamanlı ses akışı</p>
+        {/* Sağ Panel - Anlık Çeviri */}
+        <div>
+          {/* Anlık Çeviri */}
+          <div className="card">
+            <div className="card-header">
+              <MessageSquare className="card-icon" />
+              <h3 className="card-title">Anlık Çeviri</h3>
             </div>
-            <div className="flex flex-col items-center">
-              <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mb-2">
-                <span className="text-2xl">🔄</span>
-              </div>
-              <h4 className="font-semibold text-gray-800 mb-1">Anlık Çeviri</h4>
-              <p className="text-sm text-gray-600">Whisper + GPT-4 ile</p>
+            <div className="translation-display">
+              {currentTranslation ? (
+                <p className="translation-text">{currentTranslation}</p>
+              ) : (
+                <p className="translation-placeholder">Çeviri burada görünecek...</p>
+              )}
             </div>
-            <div className="flex flex-col items-center">
-              <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mb-2">
-                <span className="text-2xl">📡</span>
-              </div>
-              <h4 className="font-semibold text-gray-800 mb-1">Canlı Paylaşım</h4>
-              <p className="text-sm text-gray-600">WebSocket ile anlık</p>
+          </div>
+
+          {/* Çeviri Geçmişi */}
+          <div className="card">
+            <div className="card-header">
+              <MessageSquare className="card-icon" />
+              <h3 className="card-title">Çeviri Geçmişi</h3>
             </div>
+            <div className="translation-history">
+              {translations.length === 0 ? (
+                <p className="translation-placeholder" style={{ textAlign: 'center', padding: '2rem' }}>
+                  Henüz çeviri yok
+                </p>
+              ) : (
+                translations.slice().reverse().map((translation) => (
+                  <div key={translation.id} className="translation-item">
+                    <div className="translation-meta">
+                      <span className="translation-user">{translation.userName}</span>
+                      <span className="translation-time">
+                        {new Date(translation.timestamp).toLocaleTimeString()}
+                      </span>
+                    </div>
+                    <p className="translation-original">{translation.originalText}</p>
+                    <p className="translation-result">{translation.translatedText}</p>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Alt Bilgi */}
+      <div className="features-section">
+        <div className="features-grid">
+          <div className="feature-item">
+            <div className="feature-icon">🎤</div>
+            <h4 className="feature-title">Ses Yakalama</h4>
+            <p className="feature-description">Web Speech API ile gerçek zamanlı ses tanıma</p>
+          </div>
+          <div className="feature-item">
+            <div className="feature-icon">🔄</div>
+            <h4 className="feature-title">Anlık Çeviri</h4>
+            <p className="feature-description">Google Translate ile hızlı ve doğru çeviri</p>
+          </div>
+          <div className="feature-item">
+            <div className="feature-icon">📡</div>
+            <h4 className="feature-title">Canlı Paylaşım</h4>
+            <p className="feature-description">WebSocket ile anlık çeviri paylaşımı</p>
           </div>
         </div>
       </div>

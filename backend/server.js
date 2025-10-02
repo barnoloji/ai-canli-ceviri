@@ -58,13 +58,15 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('uploads')); // Upload edilen dosyaları serve et
 
-// Frontend dosyalarını serve et (production için)
-app.use(express.static('../live-translation-frontend/dist'));
+// Frontend dosyalarını serve et (sadece production için)
+if (process.env.NODE_ENV === 'production') {
+  app.use(express.static('../live-translation-frontend/dist'));
 
-// SPA için tüm route'ları index.html'e yönlendir
-app.get('*', (req, res) => {
-  res.sendFile(path.join(process.cwd(), '../live-translation-frontend/dist/index.html'));
-});
+  // SPA için tüm route'ları index.html'e yönlendir
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(process.cwd(), '../live-translation-frontend/dist/index.html'));
+  });
+}
 
 // Test endpoint
 app.get('/', (req, res) => {
@@ -399,10 +401,36 @@ async function processAudioChunk(audioData, roomId, userInfo) {
         console.log('✅ Çeviri:', translation);
       }
     } else {
-      // Mock çeviri (test için)
+      // Mock çeviri (test için) - daha gerçekçi
       console.log('🎭 Mock çeviri yapılıyor...');
-      transcript = 'Test konuşması - ses algılandı';
-      translation = 'Test speech - audio detected';
+      
+      // Rastgele mock transkriptler
+      const mockTranscripts = [
+        'Merhaba, nasılsınız?',
+        'Bu bir test konuşmasıdır',
+        'Canlı çeviri sistemi çalışıyor',
+        'Ses algılama başarılı',
+        'WebSocket bağlantısı aktif',
+        'Konferans odasına hoş geldiniz',
+        'Mikrofon test ediliyor',
+        'Ses kalitesi kontrol ediliyor'
+      ];
+      
+      const mockTranslations = [
+        'Hello, how are you?',
+        'This is a test speech',
+        'Live translation system is working',
+        'Audio detection successful',
+        'WebSocket connection is active',
+        'Welcome to the conference room',
+        'Microphone is being tested',
+        'Audio quality is being checked'
+      ];
+      
+      const randomIndex = Math.floor(Math.random() * mockTranscripts.length);
+      transcript = mockTranscripts[randomIndex];
+      translation = mockTranslations[randomIndex];
+      
       console.log('📝 Mock Transkript:', transcript);
       console.log('✅ Mock Çeviri:', translation);
     }
