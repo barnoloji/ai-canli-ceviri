@@ -59,8 +59,17 @@ export default function ConferenceTranslation() {
           break;
           
         case 'new_translation':
+          console.log('Yeni çeviri alındı:', data.translation);
           setTranslations(prev => [...prev, data.translation]);
           setCurrentTranslation(data.translation.translatedText);
+          break;
+          
+        case 'transcription_result':
+          console.log('Transkripsiyon sonucu:', data);
+          break;
+          
+        case 'translation_result':
+          console.log('Çeviri sonucu:', data);
           break;
           
         case 'user_speaking':
