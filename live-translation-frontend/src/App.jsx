@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Mic, MicOff, Users, MessageSquare, Settings, LogIn, LogOut } from 'lucide-react';
+import './App.css';
 
 export default function ConferenceTranslation() {
   // Kullanıcı durumu
