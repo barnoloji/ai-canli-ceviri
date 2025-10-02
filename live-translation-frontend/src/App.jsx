@@ -24,7 +24,7 @@ export default function ConferenceTranslation() {
   // WebSocket bağlantısı
   const connectWebSocket = () => {
     // HTTP kullanıyoruz, WS kullan
-    const wsUrl = 'ws://localhost:3002';
+    const wsUrl = 'wss://web-production-fc3b.up.railway.app';
     console.log('WebSocket bağlantısı kuruluyor:', wsUrl);
     wsRef.current = new WebSocket(wsUrl);
     
