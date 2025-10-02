@@ -21,6 +21,8 @@ console.log('🔍 OPENAI_API_KEY var mı:', !!process.env.OPENAI_API_KEY);
 console.log('🔍 OPENAI_API_KEY uzunluğu:', process.env.OPENAI_API_KEY ? process.env.OPENAI_API_KEY.length : 0);
 console.log('🔍 OPENAI_API_KEY başlangıcı:', process.env.OPENAI_API_KEY ? process.env.OPENAI_API_KEY.substring(0, 10) : 'YOK');
 
+// API key environment variable'dan yüklenecek
+
 if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY.startsWith('sk-')) {
   openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
