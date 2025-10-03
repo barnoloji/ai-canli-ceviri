@@ -21,6 +21,7 @@ export default function ConferenceTranslation() {
   const [audioLevel, setAudioLevel] = useState(0);
   const [isTranslating, setIsTranslating] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [detectedLanguage, setDetectedLanguage] = useState('tr'); // Algılanan dil
   
   // WebSocket ve ses
   const wsRef = useRef(null);
@@ -245,6 +246,13 @@ export default function ConferenceTranslation() {
     recognitionRef.current.start();
   };
 
+  // Dil algılama fonksiyonu
+  const detectLanguage = (text) => {
+    // Basit dil algılama - Türkçe karakterler varsa TR, yoksa EN
+    const turkishChars = /[çğıöşüÇĞIİÖŞÜ]/;
+    return turkishChars.test(text) ? 'tr' : 'en';
+  };
+
   // Hızlı çeviri fonksiyonu
   const translateText = async (text) => {
     try {
@@ -254,8 +262,15 @@ export default function ConferenceTranslation() {
       // Önce anlık çeviri göster
       setCurrentTranslation(`[Çevriliyor...] ${text}`);
       
+      // Dil algıla
+      const sourceLang = detectLanguage(text);
+      const targetLang = sourceLang === 'tr' ? 'en' : 'tr';
+      setDetectedLanguage(sourceLang);
+      
+      console.log(`🌐 Dil algılandı: ${sourceLang} → ${targetLang}`);
+      
       // Google Translate API kullanarak çeviri
-      const response = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=tr&tl=en&dt=t&q=${encodeURIComponent(text)}`);
+      const response = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sourceLang}&tl=${targetLang}&dt=t&q=${encodeURIComponent(text)}`);
       const data = await response.json();
       const translation = data[0][0][0];
       
@@ -274,7 +289,8 @@ export default function ConferenceTranslation() {
           originalText: text,
           translatedText: translation,
           timestamp: new Date().toISOString(),
-          language: 'tr'
+          language: sourceLang,
+          targetLanguage: targetLang
         };
         
         wsRef.current.send(JSON.stringify({
@@ -282,8 +298,8 @@ export default function ConferenceTranslation() {
           translation: translationRecord
         }));
         
-        // Local state'e ekleme - WebSocket'ten gelecek
-        // setTranslations(prev => [...prev, translationRecord]);
+        // Local state'e de ekle (hem WebSocket hem local)
+        setTranslations(prev => [...prev, translationRecord]);
       }
     } catch (error) {
       console.error('Çeviri hatası:', error);
@@ -601,12 +617,12 @@ export default function ConferenceTranslation() {
           LIVE
         </div>
         <div className="language-info">
-          <span className="lang-label">Konuşulan Dil:</span>
-          <span className="lang-value">Türkçe 🇹🇷</span>
+          <span className="lang-label">Algılanan Dil:</span>
+          <span className="lang-value">{detectedLanguage === 'tr' ? 'Türkçe 🇹🇷' : 'English 🇬🇧'}</span>
         </div>
         <div className="language-info">
           <span className="lang-label">Çevrilen Dil:</span>
-          <span className="lang-value">English 🇬🇧</span>
+          <span className="lang-value">{detectedLanguage === 'tr' ? 'English 🇬🇧' : 'Türkçe 🇹🇷'}</span>
         </div>
       </div>
 
