@@ -143,9 +143,10 @@ body {
   flex-direction: column;
   padding: 1rem;
   gap: 1rem;
-  width: 100%;
+  width: 100vw;
   max-width: none;
   margin: 0;
+  box-sizing: border-box;
 }
 
 /* Meeting Info */
@@ -679,41 +680,43 @@ body {
 }
 
 .fullscreen-content .chat-message {
-  padding: 2rem 0 2rem 2rem;
-  margin-bottom: 2rem;
-  border-bottom: 2px solid #e5e7eb;
+  border: 1px solid #e5e7eb;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  background: #ffffff;
+  border-radius: 8px;
   clear: both;
   overflow: hidden;
-  background: #fafafa;
-  border-radius: 8px;
-  margin-left: 1rem;
-  margin-right: 1rem;
+  word-wrap: break-word;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  width: 100%;
 }
 
 .fullscreen-content .message-original {
-  font-size: 1.1rem;
-  margin-bottom: 1rem;
-  line-height: 1.6;
-  word-wrap: break-word;
   color: #6b7280;
+  font-size: 0.9rem;
+  margin-bottom: 0.5rem;
   font-style: italic;
-  padding: 0.5rem;
-  background: #f3f4f6;
+  margin-top: 0;
+  line-height: 1.4;
+  word-wrap: break-word;
+  padding: 0.5rem 0.75rem;
+  background: #f9fafb;
   border-radius: 6px;
-  border-left: 4px solid #9ca3af;
+  border-left: 3px solid #d1d5db;
 }
 
 .fullscreen-content .message-translation {
-  font-size: 1.4rem;
-  font-weight: 700;
-  line-height: 1.5;
-  word-wrap: break-word;
-  margin-bottom: 0.5rem;
+  font-weight: 600;
   color: #1f2937;
-  padding: 0.75rem;
-  background: #eff6ff;
+  font-size: 1rem;
+  margin: 0;
+  line-height: 1.4;
+  word-wrap: break-word;
+  padding: 0.5rem 0.75rem;
+  background: #f0f9ff;
   border-radius: 6px;
-  border-left: 4px solid #3b82f6;
+  border-left: 3px solid #0ea5e9;
 }
 
 .fullscreen-content .message-user {
