@@ -546,9 +546,9 @@ export default function ConferenceTranslation() {
         </div>
 
         {/* Sağ Panel - Anlık Çeviri */}
-        <div>
+        <div className="right-panel">
           {/* Anlık Çeviri */}
-          <div className="card">
+          <div className="translation-card">
             <div className="card-header">
               <MessageSquare className="card-icon" />
               <h3 className="card-title">Anlık Çeviri</h3>
@@ -571,19 +571,19 @@ export default function ConferenceTranslation() {
           </div>
 
           {/* Çeviri Geçmişi */}
-          <div className="card">
+          <div className="history-card">
             <div className="card-header">
               <MessageSquare className="card-icon" />
               <h3 className="card-title">Çeviri Geçmişi</h3>
               <button 
                 onClick={toggleFullscreen}
                 className="fullscreen-button"
-                title={isFullscreen ? "Küçült" : "Tam Ekran"}
+                title="Tam Ekran"
               >
-                {isFullscreen ? "⤓" : "⤢"}
+                ⤢
               </button>
             </div>
-            <div className={`translation-history ${isFullscreen ? 'fullscreen' : ''}`}>
+            <div className="translation-history">
               {translations.length === 0 ? (
                 <p className="translation-placeholder" style={{ textAlign: 'center', padding: '2rem' }}>
                   Henüz çeviri yok
@@ -627,6 +627,38 @@ export default function ConferenceTranslation() {
           </div>
         </div>
       </div>
+
+      {/* Tam Ekran Overlay */}
+      {isFullscreen && (
+        <div className="fullscreen-overlay">
+          <div className="fullscreen-header">
+            <h2 className="fullscreen-title">🎤 Çeviri Geçmişi</h2>
+            <button onClick={toggleFullscreen} className="fullscreen-close">
+              ✕ Kapat
+            </button>
+          </div>
+          <div className="fullscreen-content">
+            {translations.length === 0 ? (
+              <p className="translation-placeholder" style={{ textAlign: 'center', padding: '4rem' }}>
+                Henüz çeviri yok
+              </p>
+            ) : (
+              translations.slice().reverse().map((translation) => (
+                <div key={translation.id} className="translation-item">
+                  <div className="translation-meta">
+                    <span className="translation-user">{translation.userName}</span>
+                    <span className="translation-time">
+                      {new Date(translation.timestamp).toLocaleTimeString()}
+                    </span>
+                  </div>
+                  <p className="translation-original">{translation.originalText}</p>
+                  <p className="translation-result">{translation.translatedText}</p>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
