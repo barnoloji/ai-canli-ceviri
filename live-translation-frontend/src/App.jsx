@@ -147,7 +147,7 @@ export default function ConferenceTranslation() {
     let interimTranscript = '';
     let finalTranscript = '';
     let lastTranslationTime = 0;
-    const TRANSLATION_DELAY = 500; // 0.5 saniye bekleme süresi - çok daha hızlı çeviri
+    const TRANSLATION_DELAY = 200; // 0.2 saniye bekleme süresi - çok agresif çeviri
     
     recognitionRef.current.onstart = () => {
       console.log('🎤 Gerçek zamanlı ses tanıma başladı');
@@ -176,20 +176,34 @@ export default function ConferenceTranslation() {
       // Anlık çeviri için interim sonuçları göster
       if (interimTranscript) {
         setCurrentTranslation(`[Çevriliyor...] ${interimTranscript}`);
+        
+        // Interim sonuçlar da çevrilebilir (çok kısa süre için)
+        if (interimTranscript.split(' ').length >= 3) {
+          const now = Date.now();
+          if (now - lastTranslationTime > 100) { // 0.1 saniye
+            console.log('🔄 Interim çeviri tetikleniyor:', interimTranscript);
+            translateText(interimTranscript);
+            lastTranslationTime = now;
+          }
+        }
       }
       
       // Final sonuçlar için çeviri yap
       if (hasNewFinal && finalTranscript.trim()) {
         const now = Date.now();
         
-        // Çok agresif çeviri tetikleme - kelime sayısına göre
+        // Ultra agresif çeviri tetikleme - cümle tamamlandığında hemen çevir
         const wordCount = finalTranscript.trim().split(' ').length;
+        const hasPunctuation = finalTranscript.includes('.') || 
+                              finalTranscript.includes('!') || 
+                              finalTranscript.includes('?') ||
+                              finalTranscript.includes(',') ||
+                              finalTranscript.includes(';');
+        
         const shouldTranslate = 
-          now - lastTranslationTime > TRANSLATION_DELAY || 
-          finalTranscript.includes('.') || 
-          finalTranscript.includes('!') || 
-          finalTranscript.includes('?') ||
-          wordCount >= 2; // 2 kelime olduğunda çevir - daha hızlı
+          hasPunctuation || // Noktalama işareti varsa hemen çevir
+          wordCount >= 4 || // 4 kelime olduğunda çevir
+          now - lastTranslationTime > TRANSLATION_DELAY; // 0.2 saniye geçtiyse çevir
         
         if (shouldTranslate) {
           console.log('🔄 Çeviri tetikleniyor:', finalTranscript.trim());
