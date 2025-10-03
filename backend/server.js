@@ -1,54 +1,17 @@
-// server.js
+// server.js - Google Translate + WebSocket Canlı Çeviri Sistemi
 import express from 'express';
 import { WebSocketServer } from 'ws';
 import { createServer } from 'http';
-import { createServer as createHttpsServer } from 'https';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import OpenAI from 'openai';
-import multer from 'multer';
 import fs from 'fs';
 import path from 'path';
 
 dotenv.config();
 
-// API key will be loaded from environment variables
+console.log('🚀 Google Translate + WebSocket Canlı Çeviri Sistemi başlatılıyor...');
 
-// OpenAI client'ı başlat
-let openai = null;
-console.log('🔍 Environment variables kontrol ediliyor...');
-console.log('🔍 OPENAI_API_KEY var mı:', !!process.env.OPENAI_API_KEY);
-console.log('🔍 OPENAI_API_KEY uzunluğu:', process.env.OPENAI_API_KEY ? process.env.OPENAI_API_KEY.length : 0);
-console.log('🔍 OPENAI_API_KEY başlangıcı:', process.env.OPENAI_API_KEY ? process.env.OPENAI_API_KEY.substring(0, 10) : 'YOK');
-
-// API key environment variable'dan yüklenecek
-
-if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY.startsWith('sk-')) {
-  openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
-  });
-  console.log('✅ OpenAI API bağlantısı kuruldu');
-  console.log('🔑 API Key:', process.env.OPENAI_API_KEY.substring(0, 10) + '...');
-} else {
-  console.log('⚠️ OpenAI API key bulunamadı - sadece WebSocket çalışacak');
-  console.log('🔍 API Key durumu:', process.env.OPENAI_API_KEY ? 'Var ama geçersiz' : 'Yok');
-}
-
-// Multer konfigürasyonu (ses dosyaları için)
-const upload = multer({
-  dest: 'uploads/',
-  limits: {
-    fileSize: 25 * 1024 * 1024, // 25MB limit (Whisper limiti)
-  },
-  fileFilter: (req, file, cb) => {
-    // Sadece ses dosyalarını kabul et
-    if (file.mimetype.startsWith('audio/')) {
-      cb(null, true);
-    } else {
-      cb(new Error('Sadece ses dosyaları kabul edilir!'), false);
-    }
-  }
-});
+// Artık ses dosyası yüklemiyoruz, sadece WebSocket ile çalışıyoruz
 
 const app = express();
 const server = createServer(app);
@@ -73,145 +36,24 @@ app.get('/', (req, res) => {
   res.json({ message: 'Canlı Çeviri API Çalışıyor! 🎉' });
 });
 
-// OpenAI API fonksiyonları
-async function transcribeAudio(audioFile, retries = 3) {
-  if (!openai) {
-    throw new Error('OpenAI API key bulunamadı');
-  }
-  
-  for (let attempt = 1; attempt <= retries; attempt++) {
-    try {
-      console.log(`🎯 Whisper deneme ${attempt}/${retries}...`);
-      
-      const transcription = await openai.audio.transcriptions.create({
-        file: fs.createReadStream(audioFile),
-        model: "whisper-1",
-        language: "auto", // Otomatik dil tespiti
-        timeout: 60000, // 60 saniye timeout
-      }, {
-        timeout: 60000, // Request timeout
-        maxRetries: 0, // Manual retry logic kullanıyoruz
-      });
-      
-      console.log(`✅ Whisper başarılı (deneme ${attempt})`);
-      return transcription.text;
-    } catch (error) {
-      console.error(`❌ Whisper deneme ${attempt} başarısız:`, error.message);
-      
-      // Quota hatası için mock response
-      if (error.message.includes('429') || error.message.includes('quota')) {
-        console.log('🔄 Quota hatası - Mock transkripsiyon döndürülüyor...');
-        return "Bu bir test transkripsiyonudur. OpenAI quota'sı aşılmış.";
-      }
-      
-      if (attempt === retries) {
-        throw new Error('Ses çevirme hatası: ' + error.message);
-      }
-      
-      // Exponential backoff
-      const delay = Math.pow(2, attempt) * 1000;
-      console.log(`⏳ ${delay}ms bekleyip tekrar denenecek...`);
-      await new Promise(resolve => setTimeout(resolve, delay));
-    }
-  }
-}
-
-async function translateText(text, targetLanguage, retries = 3) {
-  if (!openai) {
-    throw new Error('OpenAI API key bulunamadı');
-  }
-  
-  for (let attempt = 1; attempt <= retries; attempt++) {
-    try {
-      console.log(`🌐 Çeviri deneme ${attempt}/${retries}...`);
-      
-      const systemPrompt = targetLanguage === 'tr' 
-        ? "Sen bir profesyonel çevirmensin. Verilen İngilizce metni doğal ve akıcı Türkçe'ye çevir. Sadece çeviriyi döndür, açıklama yapma."
-        : "You are a professional translator. Translate the given Turkish text into natural and fluent English. Only return the translation, no explanations.";
-
-      const completion = await openai.chat.completions.create({
-        model: "gpt-3.5-turbo",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: text }
-        ],
-        max_tokens: 1000,
-        temperature: 0.3,
-        timeout: 30000, // 30 saniye timeout
-      });
-
-      console.log(`✅ Çeviri başarılı (deneme ${attempt})`);
-      return completion.choices[0].message.content.trim();
-    } catch (error) {
-      console.error(`❌ Çeviri deneme ${attempt} başarısız:`, error.message);
-      
-      // Quota hatası için mock response
-      if (error.message.includes('429') || error.message.includes('quota')) {
-        console.log('🔄 Quota hatası - Mock çeviri döndürülüyor...');
-        return targetLanguage === 'tr' 
-          ? "Bu bir test çevirisidir. OpenAI quota'sı aşılmış."
-          : "This is a test translation. OpenAI quota exceeded.";
-      }
-      
-      if (attempt === retries) {
-        throw new Error('Çeviri hatası: ' + error.message);
-      }
-      
-      // Exponential backoff
-      const delay = Math.pow(2, attempt) * 1000;
-      console.log(`⏳ ${delay}ms bekleyip tekrar denenecek...`);
-      await new Promise(resolve => setTimeout(resolve, delay));
-    }
-  }
-}
-
-// API Endpoints
-
-// Ses dosyası yükleme ve çeviri
-app.post('/api/translate-audio', upload.single('audio'), async (req, res) => {
+// Google Translate API fonksiyonu
+async function translateWithGoogle(text, targetLanguage = 'en') {
   try {
-    if (!req.file) {
-      return res.status(400).json({ error: 'Ses dosyası gerekli!' });
-    }
-
-    const { targetLanguage = 'en' } = req.body;
+    console.log(`🌐 Google Translate ile çeviri: ${text}`);
     
-    console.log('🎤 Ses dosyası alındı:', req.file.originalname);
+    const response = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=tr&tl=${targetLanguage}&dt=t&q=${encodeURIComponent(text)}`);
+    const data = await response.json();
+    const translation = data[0][0][0];
     
-    // 1. Whisper ile ses → metin
-    const transcript = await transcribeAudio(req.file.path);
-    console.log('📝 Transkript:', transcript);
-    
-    // 2. GPT-4 ile çeviri
-    const translation = await translateText(transcript, targetLanguage);
-    console.log('🔄 Çeviri:', translation);
-    
-    // 3. Geçici dosyayı sil
-    fs.unlinkSync(req.file.path);
-    
-    res.json({
-      success: true,
-      transcript,
-      translation,
-      originalLanguage: 'auto-detected',
-      targetLanguage
-    });
-    
+    console.log(`✅ Google Translate başarılı: ${translation}`);
+    return translation;
   } catch (error) {
-    console.error('API Error:', error);
-    
-    // Hata durumunda dosyayı temizle
-    if (req.file && fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path);
-    }
-    
-    res.status(500).json({
-      error: error.message || 'Sunucu hatası'
-    });
+    console.error('❌ Google Translate hatası:', error);
+    return `[Çeviri hatası] ${text}`;
   }
-});
+}
 
-// Sadece metin çevirisi
+// API Endpoints - Sadece metin çevirisi (Google Translate)
 app.post('/api/translate-text', async (req, res) => {
   try {
     const { text, targetLanguage = 'en' } = req.body;
@@ -222,7 +64,7 @@ app.post('/api/translate-text', async (req, res) => {
     
     console.log('📝 Metin çevirisi:', text);
     
-    const translation = await translateText(text, targetLanguage);
+    const translation = await translateWithGoogle(text, targetLanguage);
     console.log('🔄 Çeviri:', translation);
     
     res.json({
@@ -293,13 +135,14 @@ wss.on('connection', (ws) => {
           }));
           break;
           
-        case 'audio_chunk':
-          // Ses parçasını işle
-          console.log('🎤 Ses parçası alındı, boyut:', data.audioData?.length);
+        case 'new_translation':
+          // Frontend'ten gelen çeviriyi tüm kullanıcılara yayınla
+          console.log('📝 Yeni çeviri alındı:', data.translation);
           if (userInfo.roomId) {
-            await processAudioChunk(data.audioData, data.roomId, userInfo);
-          } else {
-            console.error('❌ Kullanıcı oda ID\'si yok!');
+            broadcastToRoom(userInfo.roomId, {
+              type: 'new_translation',
+              translation: data.translation
+            });
           }
           break;
           
@@ -372,127 +215,7 @@ function broadcastToRoom(roomId, message, excludeUserId = null) {
   });
 }
 
-// Hızlı ses işleme için optimizasyon
-const audioChunkBuffer = new Map(); // Kullanıcı bazında ses buffer'ı
-const processingQueue = new Map(); // İşleme kuyruğu
-
-async function processAudioChunk(audioData, roomId, userInfo) {
-  try {
-    console.log('🔄 Hızlı ses işleme başlıyor...');
-    
-    // Base64 ses verisini işle
-    const audioBuffer = Buffer.from(audioData, 'base64');
-    console.log('📁 Ses buffer boyutu:', audioBuffer.length);
-    
-    // Kullanıcı buffer'ına ekle
-    if (!audioChunkBuffer.has(userInfo.id)) {
-      audioChunkBuffer.set(userInfo.id, []);
-    }
-    audioChunkBuffer.get(userInfo.id).push(audioBuffer);
-    
-    // Buffer boyutu kontrolü - çok küçükse bekle
-    const userBuffer = audioChunkBuffer.get(userInfo.id);
-    if (userBuffer.length < 3) { // En az 3 chunk bekle
-      console.log('⏳ Daha fazla ses verisi bekleniyor...');
-      return;
-    }
-    
-    // Buffer'ı birleştir
-    const combinedBuffer = Buffer.concat(userBuffer);
-    console.log('📦 Birleştirilmiş buffer boyutu:', combinedBuffer.length);
-    
-    // Buffer'ı temizle
-    audioChunkBuffer.set(userInfo.id, []);
-    
-    // Geçici dosya oluştur
-    const tempFile = `uploads/temp_${Date.now()}_${userInfo.id}.webm`;
-    fs.writeFileSync(tempFile, combinedBuffer);
-    console.log('💾 Geçici dosya oluşturuldu:', tempFile);
-    
-    let transcript = '';
-    let translation = '';
-    
-    if (openai) {
-      // Gerçek API ile çeviri - daha hızlı
-      console.log('🎯 Whisper ile hızlı transkript...');
-      transcript = await transcribeAudio(tempFile);
-      console.log('📝 Transkript:', transcript);
-      
-      if (transcript && transcript.trim().length > 0) {
-        console.log('🔄 GPT-3.5 ile hızlı çeviri...');
-        const targetLanguage = 'en';
-        translation = await translateText(transcript, targetLanguage);
-        console.log('✅ Çeviri:', translation);
-      }
-    } else {
-      // Mock çeviri (test için) - daha hızlı
-      console.log('🎭 Hızlı mock çeviri...');
-      
-      // Daha kısa mock transkriptler
-      const mockTranscripts = [
-        'Merhaba',
-        'Test',
-        'Çalışıyor',
-        'Başarılı',
-        'Aktif',
-        'Hoş geldiniz',
-        'Test ediliyor',
-        'Kontrol ediliyor'
-      ];
-      
-      const mockTranslations = [
-        'Hello',
-        'Test',
-        'Working',
-        'Successful',
-        'Active',
-        'Welcome',
-        'Being tested',
-        'Being checked'
-      ];
-      
-      const randomIndex = Math.floor(Math.random() * mockTranscripts.length);
-      transcript = mockTranscripts[randomIndex];
-      translation = mockTranslations[randomIndex];
-      
-      console.log('📝 Mock Transkript:', transcript);
-      console.log('✅ Mock Çeviri:', translation);
-    }
-    
-    if (transcript && transcript.trim().length > 0) {
-      // Çeviri kaydını oluştur
-      const translationRecord = {
-        id: generateTranslationId(),
-        userId: userInfo.id,
-        userName: userInfo.name,
-        originalText: transcript,
-        translatedText: translation,
-        timestamp: new Date().toISOString(),
-        language: 'auto-detected'
-      };
-      
-      // Oda geçmişine ekle
-      const room = conferenceRooms.get(roomId);
-      room.translations.push(translationRecord);
-      
-      // Tüm kullanıcılara gönder
-      console.log('📡 Çeviri tüm kullanıcılara gönderiliyor...');
-      broadcastToRoom(roomId, {
-        type: 'new_translation',
-        translation: translationRecord
-      });
-    } else {
-      console.log('⚠️ Transkript boş, çeviri yapılmıyor');
-    }
-    
-    // Geçici dosyayı sil
-    fs.unlinkSync(tempFile);
-    console.log('🗑️ Geçici dosya silindi');
-    
-  } catch (error) {
-    console.error('❌ Ses işleme hatası:', error);
-  }
-}
+// Artık ses işleme yapmıyoruz, sadece WebSocket ile çeviri paylaşımı
 
 function generateTranslationId() {
   return 'trans_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
