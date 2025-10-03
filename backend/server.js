@@ -372,59 +372,83 @@ function broadcastToRoom(roomId, message, excludeUserId = null) {
   });
 }
 
+// Hızlı ses işleme için optimizasyon
+const audioChunkBuffer = new Map(); // Kullanıcı bazında ses buffer'ı
+const processingQueue = new Map(); // İşleme kuyruğu
+
 async function processAudioChunk(audioData, roomId, userInfo) {
   try {
-    console.log('🔄 Ses işleme başlıyor...');
+    console.log('🔄 Hızlı ses işleme başlıyor...');
     
     // Base64 ses verisini işle
     const audioBuffer = Buffer.from(audioData, 'base64');
     console.log('📁 Ses buffer boyutu:', audioBuffer.length);
     
+    // Kullanıcı buffer'ına ekle
+    if (!audioChunkBuffer.has(userInfo.id)) {
+      audioChunkBuffer.set(userInfo.id, []);
+    }
+    audioChunkBuffer.get(userInfo.id).push(audioBuffer);
+    
+    // Buffer boyutu kontrolü - çok küçükse bekle
+    const userBuffer = audioChunkBuffer.get(userInfo.id);
+    if (userBuffer.length < 3) { // En az 3 chunk bekle
+      console.log('⏳ Daha fazla ses verisi bekleniyor...');
+      return;
+    }
+    
+    // Buffer'ı birleştir
+    const combinedBuffer = Buffer.concat(userBuffer);
+    console.log('📦 Birleştirilmiş buffer boyutu:', combinedBuffer.length);
+    
+    // Buffer'ı temizle
+    audioChunkBuffer.set(userInfo.id, []);
+    
     // Geçici dosya oluştur
-    const tempFile = `uploads/temp_${Date.now()}.webm`;
-    fs.writeFileSync(tempFile, audioBuffer);
+    const tempFile = `uploads/temp_${Date.now()}_${userInfo.id}.webm`;
+    fs.writeFileSync(tempFile, combinedBuffer);
     console.log('💾 Geçici dosya oluşturuldu:', tempFile);
     
     let transcript = '';
     let translation = '';
     
     if (openai) {
-      // Gerçek API ile çeviri
-      console.log('🎯 Whisper ile transkript başlıyor...');
+      // Gerçek API ile çeviri - daha hızlı
+      console.log('🎯 Whisper ile hızlı transkript...');
       transcript = await transcribeAudio(tempFile);
       console.log('📝 Transkript:', transcript);
       
       if (transcript && transcript.trim().length > 0) {
-        console.log('🔄 GPT-4 ile çeviri başlıyor...');
+        console.log('🔄 GPT-3.5 ile hızlı çeviri...');
         const targetLanguage = 'en';
         translation = await translateText(transcript, targetLanguage);
         console.log('✅ Çeviri:', translation);
       }
     } else {
-      // Mock çeviri (test için) - daha gerçekçi
-      console.log('🎭 Mock çeviri yapılıyor...');
+      // Mock çeviri (test için) - daha hızlı
+      console.log('🎭 Hızlı mock çeviri...');
       
-      // Rastgele mock transkriptler
+      // Daha kısa mock transkriptler
       const mockTranscripts = [
-        'Merhaba, nasılsınız?',
-        'Bu bir test konuşmasıdır',
-        'Canlı çeviri sistemi çalışıyor',
-        'Ses algılama başarılı',
-        'WebSocket bağlantısı aktif',
-        'Konferans odasına hoş geldiniz',
-        'Mikrofon test ediliyor',
-        'Ses kalitesi kontrol ediliyor'
+        'Merhaba',
+        'Test',
+        'Çalışıyor',
+        'Başarılı',
+        'Aktif',
+        'Hoş geldiniz',
+        'Test ediliyor',
+        'Kontrol ediliyor'
       ];
       
       const mockTranslations = [
-        'Hello, how are you?',
-        'This is a test speech',
-        'Live translation system is working',
-        'Audio detection successful',
-        'WebSocket connection is active',
-        'Welcome to the conference room',
-        'Microphone is being tested',
-        'Audio quality is being checked'
+        'Hello',
+        'Test',
+        'Working',
+        'Successful',
+        'Active',
+        'Welcome',
+        'Being tested',
+        'Being checked'
       ];
       
       const randomIndex = Math.floor(Math.random() * mockTranscripts.length);

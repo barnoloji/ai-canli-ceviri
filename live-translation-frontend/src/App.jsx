@@ -15,6 +15,7 @@ export default function ConferenceTranslation() {
   const [translations, setTranslations] = useState([]);
   const [currentTranslation, setCurrentTranslation] = useState('');
   const [audioLevel, setAudioLevel] = useState(0);
+  const [isTranslating, setIsTranslating] = useState(false);
   
   // WebSocket ve ses
   const wsRef = useRef(null);
@@ -122,7 +123,7 @@ export default function ConferenceTranslation() {
     };
   };
 
-  // Web Speech API ile ses tanıma
+  // Web Speech API ile gerçek zamanlı ses tanıma
   const startSpeechRecognition = () => {
     if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
       alert('Bu tarayıcı ses tanımayı desteklemiyor!');
@@ -135,50 +136,106 @@ export default function ConferenceTranslation() {
     recognitionRef.current.continuous = true;
     recognitionRef.current.interimResults = true;
     recognitionRef.current.lang = 'tr-TR'; // Türkçe
+    recognitionRef.current.maxAlternatives = 1;
+    
+    let interimTranscript = '';
+    let finalTranscript = '';
+    let lastTranslationTime = 0;
+    const TRANSLATION_DELAY = 2000; // 2 saniye bekleme süresi
     
     recognitionRef.current.onstart = () => {
-      console.log('🎤 Ses tanıma başladı');
+      console.log('🎤 Gerçek zamanlı ses tanıma başladı');
       setIsSpeaking(true);
+      interimTranscript = '';
+      finalTranscript = '';
     };
     
     recognitionRef.current.onresult = (event) => {
-      let finalTranscript = '';
+      interimTranscript = '';
+      let hasNewFinal = false;
       
       for (let i = event.resultIndex; i < event.results.length; i++) {
+        const transcript = event.results[i][0].transcript;
+        
         if (event.results[i].isFinal) {
-          finalTranscript += event.results[i][0].transcript;
+          finalTranscript += transcript + ' ';
+          hasNewFinal = true;
+          console.log('📝 Final metin:', transcript);
+        } else {
+          interimTranscript += transcript;
+          console.log('🔄 Interim metin:', transcript);
         }
       }
       
-      if (finalTranscript) {
-        console.log('📝 Tanınan metin:', finalTranscript);
+      // Anlık çeviri için interim sonuçları göster
+      if (interimTranscript) {
+        setCurrentTranslation(`[Çevriliyor...] ${interimTranscript}`);
+      }
+      
+      // Final sonuçlar için çeviri yap
+      if (hasNewFinal && finalTranscript.trim()) {
+        const now = Date.now();
         
-        // Google Translate ile çeviri
-        translateText(finalTranscript);
+        // Eğer son çeviriden 2 saniye geçtiyse veya cümle tamamlandıysa çevir
+        if (now - lastTranslationTime > TRANSLATION_DELAY || 
+            finalTranscript.includes('.') || 
+            finalTranscript.includes('!') || 
+            finalTranscript.includes('?')) {
+          
+          console.log('🔄 Çeviri tetikleniyor:', finalTranscript.trim());
+          translateText(finalTranscript.trim());
+          lastTranslationTime = now;
+          finalTranscript = ''; // Çevirilen metni temizle
+        }
       }
     };
     
     recognitionRef.current.onerror = (event) => {
       console.error('Ses tanıma hatası:', event.error);
+      if (event.error === 'no-speech') {
+        // Sessizlik durumunda yeniden başlat
+        setTimeout(() => {
+          if (isSpeaking) {
+            recognitionRef.current.start();
+          }
+        }, 1000);
+      }
     };
     
     recognitionRef.current.onend = () => {
       console.log('🎤 Ses tanıma bitti');
       setIsSpeaking(false);
+      
+      // Eğer hala konuşma modundaysa yeniden başlat
+      if (isSpeaking) {
+        setTimeout(() => {
+          recognitionRef.current.start();
+        }, 100);
+      }
     };
     
     recognitionRef.current.start();
   };
 
-  // Google Translate ile çeviri
+  // Hızlı çeviri fonksiyonu
   const translateText = async (text) => {
     try {
+      console.log('🔄 Çeviri başlıyor:', text);
+      setIsTranslating(true);
+      
+      // Önce anlık çeviri göster
+      setCurrentTranslation(`[Çevriliyor...] ${text}`);
+      
       // Google Translate API kullanarak çeviri
       const response = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=tr&tl=en&dt=t&q=${encodeURIComponent(text)}`);
       const data = await response.json();
       const translation = data[0][0][0];
       
-      console.log('🔄 Çeviri:', translation);
+      console.log('✅ Çeviri tamamlandı:', translation);
+      
+      // Çeviriyi anında göster
+      setCurrentTranslation(translation);
+      setIsTranslating(false);
       
       // Çeviriyi WebSocket ile gönder
       if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
@@ -197,11 +254,12 @@ export default function ConferenceTranslation() {
           translation: translationRecord
         }));
         
-        setCurrentTranslation(translation);
         setTranslations(prev => [...prev, translationRecord]);
       }
     } catch (error) {
       console.error('Çeviri hatası:', error);
+      setCurrentTranslation(`[Çeviri hatası] ${text}`);
+      setIsTranslating(false);
     }
   };
 
@@ -491,7 +549,15 @@ export default function ConferenceTranslation() {
             </div>
             <div className="translation-display">
               {currentTranslation ? (
-                <p className="translation-text">{currentTranslation}</p>
+                <div>
+                  <p className="translation-text">{currentTranslation}</p>
+                  {isTranslating && (
+                    <div className="translation-status">
+                      <div className="loading-spinner"></div>
+                      <span>Çevriliyor...</span>
+                    </div>
+                  )}
+                </div>
               ) : (
                 <p className="translation-placeholder">Çeviri burada görünecek...</p>
               )}
