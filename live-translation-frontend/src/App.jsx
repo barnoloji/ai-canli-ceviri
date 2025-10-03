@@ -24,6 +24,8 @@ export default function ConferenceTranslation() {
   
   // WebSocket ve ses
   const wsRef = useRef(null);
+  const chatEndRef = useRef(null);
+  const fullscreenChatEndRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const streamRef = useRef(null);
@@ -178,16 +180,8 @@ export default function ConferenceTranslation() {
       if (interimTranscript) {
         setCurrentTranslation(`[Çevriliyor...] ${interimTranscript}`);
         
-        // Interim sonuçlar da çevrilebilir (çok kısa süre için)
-        if (interimTranscript.split(' ').length >= 3 && interimTranscript !== lastTranslatedText) {
-          const now = Date.now();
-          if (now - lastTranslationTime > 100) { // 0.1 saniye
-            console.log('🔄 Interim çeviri tetikleniyor:', interimTranscript);
-            translateText(interimTranscript);
-            lastTranslationTime = now;
-            lastTranslatedText = interimTranscript;
-          }
-        }
+        // Interim sonuçlar da çevrilebilir (çok kısa süre için) - KALDIRILDI
+        // Çok fazla tekrarlama yapıyordu, sadece final sonuçları kullan
       }
       
       // Final sonuçlar için çeviri yap
@@ -202,11 +196,17 @@ export default function ConferenceTranslation() {
                               finalTranscript.includes(',') ||
                               finalTranscript.includes(';');
         
+        // Daha sıkı tekrarlama kontrolü
+        const currentText = finalTranscript.trim();
+        const isDuplicate = currentText === lastTranslatedText || 
+                           currentText.includes(lastTranslatedText) ||
+                           lastTranslatedText.includes(currentText);
+        
         const shouldTranslate = 
+          !isDuplicate && // Tekrar değilse
           (hasPunctuation || // Noktalama işareti varsa hemen çevir
-          wordCount >= 4 || // 4 kelime olduğunda çevir
-          now - lastTranslationTime > TRANSLATION_DELAY) && // 0.2 saniye geçtiyse çevir
-          finalTranscript.trim() !== lastTranslatedText; // Aynı metin değilse çevir
+          wordCount >= 5 || // 5 kelime olduğunda çevir (daha az sık)
+          now - lastTranslationTime > TRANSLATION_DELAY); // 0.2 saniye geçtiyse çevir
         
         if (shouldTranslate) {
           console.log('🔄 Çeviri tetikleniyor:', finalTranscript.trim());
@@ -439,6 +439,31 @@ export default function ConferenceTranslation() {
     setIsFullscreen(!isFullscreen);
   };
 
+  // Otomatik scroll fonksiyonu
+  const scrollToBottom = () => {
+    if (chatEndRef.current) {
+      chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
+  const scrollToBottomFullscreen = () => {
+    if (fullscreenChatEndRef.current) {
+      fullscreenChatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
+  // Yeni çeviri geldiğinde otomatik scroll
+  useEffect(() => {
+    scrollToBottom();
+  }, [translations]);
+
+  // Tam ekran modunda da otomatik scroll
+  useEffect(() => {
+    if (isFullscreen) {
+      scrollToBottomFullscreen();
+    }
+  }, [translations, isFullscreen]);
+
   if (!isLoggedIn) {
     return (
       <div className="login-container">
@@ -615,6 +640,7 @@ export default function ConferenceTranslation() {
               </div>
             ))
           )}
+          <div ref={chatEndRef} />
         </div>
       </div>
 
@@ -646,6 +672,7 @@ export default function ConferenceTranslation() {
                 </div>
               ))
             )}
+            <div ref={fullscreenChatEndRef} />
           </div>
         </div>
       )}
