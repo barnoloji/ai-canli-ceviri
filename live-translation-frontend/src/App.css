@@ -357,6 +357,20 @@ body {
   }
 }
 
+@media (min-width: 1920px) {
+  .main-grid {
+    grid-template-columns: 1fr 3fr;
+    gap: 5rem;
+  }
+}
+
+/* Left Panel */
+.left-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
 /* Cards */
 .card {
   background: rgba(255, 255, 255, 0.95);
@@ -367,6 +381,15 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.2);
   transition: all 0.3s ease;
   animation: fadeInUp 0.6s ease-out;
+}
+
+/* Specific card styles */
+.users-card {
+  margin-bottom: 0;
+}
+
+.mic-card {
+  margin-top: 0;
 }
 
 @keyframes fadeInUp {
@@ -390,6 +413,24 @@ body {
   align-items: center;
   gap: 0.75rem;
   margin-bottom: 1.5rem;
+  justify-content: space-between;
+}
+
+.fullscreen-button {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  font-size: 1.2rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.fullscreen-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(102, 126, 234, 0.4);
 }
 
 .card-title {
@@ -571,32 +612,34 @@ body {
   border: 2px solid rgba(16, 185, 129, 0.2);
   border-radius: 20px;
   padding: 2.5rem;
-  min-height: 200px;
+  height: 200px;
+  width: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
   text-align: center;
   position: relative;
   overflow: hidden;
+  box-sizing: border-box;
 }
 
 @media (min-width: 768px) {
   .translation-display {
-    min-height: 250px;
+    height: 250px;
     padding: 3rem;
   }
 }
 
 @media (min-width: 1024px) {
   .translation-display {
-    min-height: 300px;
+    height: 300px;
     padding: 3.5rem;
   }
 }
 
 @media (min-width: 1440px) {
   .translation-display {
-    min-height: 350px;
+    height: 350px;
     padding: 4rem;
   }
 }
@@ -679,6 +722,37 @@ body {
   max-height: 400px;
   overflow-y: auto;
   padding-right: 0.5rem;
+}
+
+.translation-history.fullscreen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(255, 255, 255, 0.98);
+  backdrop-filter: blur(20px);
+  z-index: 9999;
+  max-height: none;
+  padding: 3rem;
+  overflow-y: auto;
+  border-radius: 0;
+}
+
+.translation-history.fullscreen .translation-item {
+  padding: 2rem 0 2rem 2rem;
+  margin-bottom: 2rem;
+  font-size: 1.2rem;
+}
+
+.translation-history.fullscreen .translation-original {
+  font-size: 1.4rem;
+  margin-bottom: 1rem;
+}
+
+.translation-history.fullscreen .translation-result {
+  font-size: 1.6rem;
+  font-weight: 700;
 }
 
 .translation-history::-webkit-scrollbar {

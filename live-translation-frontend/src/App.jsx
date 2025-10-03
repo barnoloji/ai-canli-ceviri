@@ -16,6 +16,7 @@ export default function ConferenceTranslation() {
   const [currentTranslation, setCurrentTranslation] = useState('');
   const [audioLevel, setAudioLevel] = useState(0);
   const [isTranslating, setIsTranslating] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   
   // WebSocket ve ses
   const wsRef = useRef(null);
@@ -405,6 +406,11 @@ export default function ConferenceTranslation() {
     }
   };
 
+  // Tam ekran toggle
+  const toggleFullscreen = () => {
+    setIsFullscreen(!isFullscreen);
+  };
+
   if (!isLoggedIn) {
     return (
       <div className="login-container">
@@ -483,9 +489,9 @@ export default function ConferenceTranslation() {
 
       <div className="main-grid">
         {/* Sol Panel - Kullanıcılar ve Mikrofon */}
-        <div>
+        <div className="left-panel">
           {/* Kullanıcılar */}
-          <div className="card">
+          <div className="card users-card">
             <div className="card-header">
               <Users className="card-icon" />
               <h3 className="card-title">Katılımcılar ({users.length})</h3>
@@ -503,7 +509,7 @@ export default function ConferenceTranslation() {
           </div>
 
           {/* Mikrofon Kontrolü */}
-          <div className="card">
+          <div className="card mic-card">
             <div className="mic-container">
               <button
                 onClick={toggleMicrophone}
@@ -569,8 +575,15 @@ export default function ConferenceTranslation() {
             <div className="card-header">
               <MessageSquare className="card-icon" />
               <h3 className="card-title">Çeviri Geçmişi</h3>
+              <button 
+                onClick={toggleFullscreen}
+                className="fullscreen-button"
+                title={isFullscreen ? "Küçült" : "Tam Ekran"}
+              >
+                {isFullscreen ? "⤓" : "⤢"}
+              </button>
             </div>
-            <div className="translation-history">
+            <div className={`translation-history ${isFullscreen ? 'fullscreen' : ''}`}>
               {translations.length === 0 ? (
                 <p className="translation-placeholder" style={{ textAlign: 'center', padding: '2rem' }}>
                   Henüz çeviri yok
