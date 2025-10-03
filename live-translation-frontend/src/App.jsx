@@ -54,8 +54,9 @@ export default function ConferenceTranslation() {
 
   // WebSocket bağlantısı
   const connectWebSocket = () => {
-    // HTTP kullanıyoruz, WS kullan
-    const wsUrl = 'ws://localhost:3002';
+    // Production'da wss://, development'ta ws:// kullan
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${window.location.host}`;
     console.log('WebSocket bağlantısı kuruluyor:', wsUrl);
     wsRef.current = new WebSocket(wsUrl);
     
