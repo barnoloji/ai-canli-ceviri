@@ -147,7 +147,7 @@ export default function ConferenceTranslation() {
     let interimTranscript = '';
     let finalTranscript = '';
     let lastTranslationTime = 0;
-    const TRANSLATION_DELAY = 2000; // 2 saniye bekleme süresi
+    const TRANSLATION_DELAY = 800; // 0.8 saniye bekleme süresi - daha hızlı çeviri
     
     recognitionRef.current.onstart = () => {
       console.log('🎤 Gerçek zamanlı ses tanıma başladı');
@@ -182,12 +182,16 @@ export default function ConferenceTranslation() {
       if (hasNewFinal && finalTranscript.trim()) {
         const now = Date.now();
         
-        // Eğer son çeviriden 2 saniye geçtiyse veya cümle tamamlandıysa çevir
-        if (now - lastTranslationTime > TRANSLATION_DELAY || 
-            finalTranscript.includes('.') || 
-            finalTranscript.includes('!') || 
-            finalTranscript.includes('?')) {
-          
+        // Daha agresif çeviri tetikleme - kelime sayısına göre
+        const wordCount = finalTranscript.trim().split(' ').length;
+        const shouldTranslate = 
+          now - lastTranslationTime > TRANSLATION_DELAY || 
+          finalTranscript.includes('.') || 
+          finalTranscript.includes('!') || 
+          finalTranscript.includes('?') ||
+          wordCount >= 3; // 3 kelime olduğunda çevir
+        
+        if (shouldTranslate) {
           console.log('🔄 Çeviri tetikleniyor:', finalTranscript.trim());
           translateText(finalTranscript.trim());
           lastTranslationTime = now;

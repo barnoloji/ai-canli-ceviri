@@ -558,6 +558,9 @@ body {
   background: #f8fafc;
   border-radius: 0 8px 8px 0;
   transition: all 0.2s;
+  clear: both;
+  overflow: hidden;
+  word-wrap: break-word;
 }
 
 .chat-message:hover {
@@ -589,6 +592,8 @@ body {
   margin-bottom: 0.5rem;
   font-style: italic;
   margin-top: 0;
+  line-height: 1.5;
+  word-wrap: break-word;
 }
 
 .message-translation {
@@ -596,6 +601,8 @@ body {
   color: #1f2937;
   font-size: 1rem;
   margin: 0;
+  line-height: 1.4;
+  word-wrap: break-word;
 }
 
 /* Fullscreen Overlay */
@@ -611,6 +618,7 @@ body {
   flex-direction: column;
   padding: 2rem;
   overflow: hidden;
+  box-sizing: border-box;
 }
 
 .fullscreen-header {
@@ -651,29 +659,41 @@ body {
   flex: 1;
   overflow-y: auto;
   padding-right: 1rem;
+  max-height: calc(100vh - 200px);
+  box-sizing: border-box;
 }
 
 .fullscreen-content .chat-message {
-  padding: 2rem 0 2rem 2rem;
-  margin-bottom: 2rem;
+  padding: 1.5rem 0 1.5rem 1.5rem;
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid #f1f5f9;
+  clear: both;
+  overflow: hidden;
 }
 
 .fullscreen-content .message-original {
   font-size: 1.25rem;
   margin-bottom: 1rem;
+  line-height: 1.6;
+  word-wrap: break-word;
 }
 
 .fullscreen-content .message-translation {
   font-size: 1.75rem;
   font-weight: 700;
+  line-height: 1.4;
+  word-wrap: break-word;
+  margin-bottom: 0.5rem;
 }
 
 .fullscreen-content .message-user {
   font-size: 1rem;
+  margin-bottom: 0.25rem;
 }
 
 .fullscreen-content .message-time {
   font-size: 0.875rem;
+  margin-bottom: 0;
 }
 
 /* Responsive */
