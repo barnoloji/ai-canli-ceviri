@@ -680,45 +680,43 @@ body {
 }
 
 .fullscreen-content .chat-message {
-  border: 2px solid #e5e7eb;
-  padding: 2rem;
-  margin-bottom: 2rem;
+  border: 1px solid #e5e7eb;
+  padding: 1rem;
+  margin-bottom: 1rem;
   background: #ffffff;
-  border-radius: 16px;
+  border-radius: 8px;
   clear: both;
   overflow: hidden;
   word-wrap: break-word;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   width: 100%;
 }
 
 .fullscreen-content .message-original {
-  color: #4b5563;
-  font-size: 1.4rem;
-  margin-bottom: 1rem;
+  color: #6b7280;
+  font-size: 0.9rem;
+  margin-bottom: 0.5rem;
   font-style: italic;
   margin-top: 0;
-  line-height: 1.6;
+  line-height: 1.4;
   word-wrap: break-word;
-  padding: 1rem 1.5rem;
-  background: #f3f4f6;
-  border-radius: 12px;
-  border-left: 6px solid #9ca3af;
-  font-weight: 500;
+  padding: 0.5rem 0.75rem;
+  background: #f9fafb;
+  border-radius: 6px;
+  border-left: 3px solid #d1d5db;
 }
 
 .fullscreen-content .message-translation {
-  font-weight: 700;
+  font-weight: 600;
   color: #1f2937;
-  font-size: 1.8rem;
+  font-size: 1rem;
   margin: 0;
-  line-height: 1.5;
+  line-height: 1.4;
   word-wrap: break-word;
-  padding: 1.5rem 2rem;
-  background: #dbeafe;
-  border-radius: 12px;
-  border-left: 6px solid #2563eb;
-  margin-bottom: 1rem;
+  padding: 0.5rem 0.75rem;
+  background: #f0f9ff;
+  border-radius: 6px;
+  border-left: 3px solid #0ea5e9;
 }
 
 .fullscreen-content .message-user {

@@ -147,6 +147,7 @@ export default function ConferenceTranslation() {
     let interimTranscript = '';
     let finalTranscript = '';
     let lastTranslationTime = 0;
+    let lastTranslatedText = ''; // Son çevrilen metni takip et
     const TRANSLATION_DELAY = 200; // 0.2 saniye bekleme süresi - çok agresif çeviri
     
     recognitionRef.current.onstart = () => {
@@ -178,12 +179,13 @@ export default function ConferenceTranslation() {
         setCurrentTranslation(`[Çevriliyor...] ${interimTranscript}`);
         
         // Interim sonuçlar da çevrilebilir (çok kısa süre için)
-        if (interimTranscript.split(' ').length >= 3) {
+        if (interimTranscript.split(' ').length >= 3 && interimTranscript !== lastTranslatedText) {
           const now = Date.now();
           if (now - lastTranslationTime > 100) { // 0.1 saniye
             console.log('🔄 Interim çeviri tetikleniyor:', interimTranscript);
             translateText(interimTranscript);
             lastTranslationTime = now;
+            lastTranslatedText = interimTranscript;
           }
         }
       }
@@ -201,14 +203,16 @@ export default function ConferenceTranslation() {
                               finalTranscript.includes(';');
         
         const shouldTranslate = 
-          hasPunctuation || // Noktalama işareti varsa hemen çevir
+          (hasPunctuation || // Noktalama işareti varsa hemen çevir
           wordCount >= 4 || // 4 kelime olduğunda çevir
-          now - lastTranslationTime > TRANSLATION_DELAY; // 0.2 saniye geçtiyse çevir
+          now - lastTranslationTime > TRANSLATION_DELAY) && // 0.2 saniye geçtiyse çevir
+          finalTranscript.trim() !== lastTranslatedText; // Aynı metin değilse çevir
         
         if (shouldTranslate) {
           console.log('🔄 Çeviri tetikleniyor:', finalTranscript.trim());
           translateText(finalTranscript.trim());
           lastTranslationTime = now;
+          lastTranslatedText = finalTranscript.trim();
           finalTranscript = ''; // Çevirilen metni temizle
         }
       }
@@ -630,15 +634,15 @@ export default function ConferenceTranslation() {
               </p>
             ) : (
               translations.slice().reverse().map((translation) => (
-                <div key={translation.id} className="translation-item">
-                  <div className="translation-meta">
-                    <span className="translation-user">{translation.userName}</span>
-                    <span className="translation-time">
+                <div key={translation.id} className="chat-message">
+                  <div className="message-header">
+                    <span className="message-user">{translation.userName}</span>
+                    <span className="message-time">
                       {new Date(translation.timestamp).toLocaleTimeString()}
                     </span>
                   </div>
-                  <p className="translation-original">{translation.originalText}</p>
-                  <p className="translation-result">{translation.translatedText}</p>
+                  <p className="message-original">{translation.originalText}</p>
+                  <p className="message-translation">{translation.translatedText}</p>
                 </div>
               ))
             )}
