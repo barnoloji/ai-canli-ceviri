@@ -8,9 +8,9 @@ export default function ConferenceTranslation() {
   const roomFromUrl = urlParams.get('room') || '';
   
   // Kullanıcı durumu
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [userName, setUserName] = useState('');
-  const [roomId, setRoomId] = useState(roomFromUrl);
+  const [isLoggedIn, setIsLoggedIn] = useState(!!roomFromUrl); // Eğer URL'de room varsa otomatik giriş
+  const [userName, setUserName] = useState(roomFromUrl ? 'Misafir' : '');
+  const [roomId, setRoomId] = useState(roomFromUrl || '1');
   
   // Konferans durumu
   const [isConnected, setIsConnected] = useState(false);
@@ -147,7 +147,7 @@ export default function ConferenceTranslation() {
     let interimTranscript = '';
     let finalTranscript = '';
     let lastTranslationTime = 0;
-    const TRANSLATION_DELAY = 800; // 0.8 saniye bekleme süresi - daha hızlı çeviri
+    const TRANSLATION_DELAY = 500; // 0.5 saniye bekleme süresi - çok daha hızlı çeviri
     
     recognitionRef.current.onstart = () => {
       console.log('🎤 Gerçek zamanlı ses tanıma başladı');
@@ -182,14 +182,14 @@ export default function ConferenceTranslation() {
       if (hasNewFinal && finalTranscript.trim()) {
         const now = Date.now();
         
-        // Daha agresif çeviri tetikleme - kelime sayısına göre
+        // Çok agresif çeviri tetikleme - kelime sayısına göre
         const wordCount = finalTranscript.trim().split(' ').length;
         const shouldTranslate = 
           now - lastTranslationTime > TRANSLATION_DELAY || 
           finalTranscript.includes('.') || 
           finalTranscript.includes('!') || 
           finalTranscript.includes('?') ||
-          wordCount >= 3; // 3 kelime olduğunda çevir
+          wordCount >= 2; // 2 kelime olduğunda çevir - daha hızlı
         
         if (shouldTranslate) {
           console.log('🔄 Çeviri tetikleniyor:', finalTranscript.trim());
