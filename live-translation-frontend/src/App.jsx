@@ -264,7 +264,8 @@ export default function ConferenceTranslation() {
           translation: translationRecord
         }));
         
-        setTranslations(prev => [...prev, translationRecord]);
+        // Local state'e ekleme - WebSocket'ten gelecek
+        // setTranslations(prev => [...prev, translationRecord]);
       }
     } catch (error) {
       console.error('Çeviri hatası:', error);
