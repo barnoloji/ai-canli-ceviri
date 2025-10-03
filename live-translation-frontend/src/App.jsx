@@ -3,10 +3,14 @@ import { Mic, MicOff, Users, MessageSquare, Settings, LogIn, LogOut } from 'luci
 import './App.css';
 
 export default function ConferenceTranslation() {
+  // URL'den room parametresini oku
+  const urlParams = new URLSearchParams(window.location.search);
+  const roomFromUrl = urlParams.get('room') || '';
+  
   // Kullanıcı durumu
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userName, setUserName] = useState('');
-  const [roomId, setRoomId] = useState('');
+  const [roomId, setRoomId] = useState(roomFromUrl);
   
   // Konferans durumu
   const [isConnected, setIsConnected] = useState(false);
@@ -459,172 +463,134 @@ export default function ConferenceTranslation() {
     );
   }
 
+  // Davet linkini kopyala
+  const copyInviteLink = () => {
+    const inviteLink = `${window.location.origin}?room=${roomId}`;
+    navigator.clipboard.writeText(inviteLink).then(() => {
+      alert('Davet linki kopyalandı! 📋');
+    }).catch(err => {
+      console.error('Link kopyalama hatası:', err);
+    });
+  };
+
   return (
     <div className="main-container">
-      {/* Header */}
-      <div className="app-header">
-        <div className="header-content">
-          <div>
-            <h1 className="app-title">🎤 Canlı Çeviri</h1>
-            <p className="app-subtitle">Oda: {roomId} • Kullanıcı: {userName}</p>
+      {/* Meeting Info */}
+      <div className="meeting-info">
+        <div className="meeting-details">
+          <h1 className="meeting-title">🎤 Canlı Çeviri</h1>
+          <p className="meeting-room">Oda: <strong>{roomId}</strong></p>
+        </div>
+        
+        <div className="meeting-actions">
+          <div className={`status-badge ${
+            isConnected ? 'connected' : 'disconnected'
+          }`}>
+            <span className="status-dot"></span>
+            {isConnected ? 'Bağlı' : 'Bağlantı Yok'}
           </div>
           
-          <div className="flex items-center gap-4">
-            <div className={`status-indicator ${
-              isConnected ? 'status-connected' : 'status-disconnected'
-            }`}>
-              <div className={`status-dot ${
-                isConnected ? 'connected' : 'disconnected'
-              }`}></div>
-              {isConnected ? 'Bağlı' : 'Bağlantı Yok'}
-            </div>
-            
-            <button onClick={handleLogout} className="btn-logout">
-              <LogOut size={16} />
-              Çıkış
-            </button>
-          </div>
+          <button onClick={copyInviteLink} className="btn-invite">
+            📋 Davet Linki Kopyala
+          </button>
+          
+          <button onClick={handleLogout} className="btn-logout">
+            <LogOut size={16} />
+            Çıkış
+          </button>
         </div>
       </div>
 
-      <div className="main-grid">
-        {/* Sol Panel - Kullanıcılar ve Mikrofon */}
-        <div className="left-panel">
-          {/* Kullanıcılar */}
-          <div className="card users-card">
-            <div className="card-header">
-              <Users className="card-icon" />
-              <h3 className="card-title">Katılımcılar ({users.length})</h3>
-            </div>
-            <div className="users-list">
-              {users.map((user) => (
-                <div key={user.id} className="user-item">
-                  <div className="user-avatar">
-                    {user.name.charAt(0).toUpperCase()}
-                  </div>
-                  <span className="user-name">{user.name}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Mikrofon Kontrolü */}
-          <div className="card mic-card">
-            <div className="mic-container">
-              <button
-                onClick={toggleMicrophone}
-                disabled={!isConnected}
-                className={`mic-button ${
-                  isSpeaking ? 'speaking' : 'not-speaking'
-                } ${!isConnected ? 'opacity-50 cursor-not-allowed' : ''}`}
-              >
-                {isSpeaking ? <MicOff className="mic-icon" /> : <Mic className="mic-icon" />}
-              </button>
-              <p className="mic-status">
-                {isSpeaking ? 'Konuşuyorsunuz...' : 'Konuşmak için tıklayın'}
-              </p>
-              
-              {/* Ses seviyesi göstergesi */}
-              {isSpeaking && (
-                <div className="audio-level-container">
-                  <div className="audio-level-label">Ses Seviyesi</div>
-                  <div className="audio-level-bar">
-                    <div 
-                      className={`audio-level-fill ${
-                        audioLevel > 5 ? '' : 'low'
-                      }`}
-                      style={{ width: `${Math.min(audioLevel, 100)}%` }}
-                    ></div>
-                  </div>
-                  <div className="audio-level-status">
-                    {audioLevel > 5 ? 'Ses algılandı' : 'Ses bekleniyor...'}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
+      {/* Participants - Yatay Liste */}
+      <div className="participants-section">
+        <div className="participants-header">
+          <Users size={20} />
+          <h3>Katılımcılar ({users.length})</h3>
         </div>
-
-        {/* Sağ Panel - Anlık Çeviri */}
-        <div className="right-panel">
-          {/* Anlık Çeviri */}
-          <div className="translation-card">
-            <div className="card-header">
-              <MessageSquare className="card-icon" />
-              <h3 className="card-title">Anlık Çeviri</h3>
+        <div className="participants-list">
+          {users.map((user) => (
+            <div key={user.id} className="participant-item">
+              <div className="participant-avatar">
+                {user.name.charAt(0).toUpperCase()}
+              </div>
+              <span className="participant-name">{user.name}</span>
             </div>
-            <div className="translation-display">
-              {currentTranslation ? (
-                <div>
-                  <p className="translation-text">{currentTranslation}</p>
-                  {isTranslating && (
-                    <div className="translation-status">
-                      <div className="loading-spinner"></div>
-                      <span>Çevriliyor...</span>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <p className="translation-placeholder">Çeviri burada görünecek...</p>
-              )}
-            </div>
-          </div>
-
-          {/* Çeviri Geçmişi */}
-          <div className="history-card">
-            <div className="card-header">
-              <MessageSquare className="card-icon" />
-              <h3 className="card-title">Çeviri Geçmişi</h3>
-              <button 
-                onClick={toggleFullscreen}
-                className="fullscreen-button"
-                title="Tam Ekran"
-              >
-                ⤢
-              </button>
-            </div>
-            <div className="translation-history">
-              {translations.length === 0 ? (
-                <p className="translation-placeholder" style={{ textAlign: 'center', padding: '2rem' }}>
-                  Henüz çeviri yok
-                </p>
-              ) : (
-                translations.slice().reverse().map((translation) => (
-                  <div key={translation.id} className="translation-item">
-                    <div className="translation-meta">
-                      <span className="translation-user">{translation.userName}</span>
-                      <span className="translation-time">
-                        {new Date(translation.timestamp).toLocaleTimeString()}
-                      </span>
-                    </div>
-                    <p className="translation-original">{translation.originalText}</p>
-                    <p className="translation-result">{translation.translatedText}</p>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
+          ))}
+          {users.length === 0 && (
+            <p className="no-participants">Henüz katılımcı yok</p>
+          )}
         </div>
       </div>
 
-      {/* Alt Bilgi */}
-      <div className="features-section">
-        <div className="features-grid">
-          <div className="feature-item">
-            <div className="feature-icon">🎤</div>
-            <h4 className="feature-title">Ses Yakalama</h4>
-            <p className="feature-description">Web Speech API ile gerçek zamanlı ses tanıma</p>
-          </div>
-          <div className="feature-item">
-            <div className="feature-icon">🔄</div>
-            <h4 className="feature-title">Anlık Çeviri</h4>
-            <p className="feature-description">Google Translate ile hızlı ve doğru çeviri</p>
-          </div>
-          <div className="feature-item">
-            <div className="feature-icon">📡</div>
-            <h4 className="feature-title">Canlı Paylaşım</h4>
-            <p className="feature-description">WebSocket ile anlık çeviri paylaşımı</p>
-          </div>
+      {/* Speaker Text - Konuşmacının Söyledikleri */}
+      <div className="speaker-section">
+        <div className="speaker-header">
+          <button
+            onClick={toggleMicrophone}
+            disabled={!isConnected}
+            className={`mic-button-inline ${
+              isSpeaking ? 'speaking' : 'not-speaking'
+            } ${!isConnected ? 'disabled' : ''}`}
+          >
+            {isSpeaking ? <MicOff size={20} /> : <Mic size={20} />}
+          </button>
+          <h3>Konuşmacı</h3>
+        </div>
+        <div className="speaker-text">
+          {currentTranslation ? (
+            <p>{currentTranslation}</p>
+          ) : (
+            <p className="placeholder">Konuşma başladığında burada görünecek...</p>
+          )}
+        </div>
+      </div>
+
+      {/* Live Translation Info */}
+      <div className="live-info">
+        <div className="live-badge">
+          <span className="live-dot"></span>
+          LIVE
+        </div>
+        <div className="language-info">
+          <span className="lang-label">Konuşulan Dil:</span>
+          <span className="lang-value">Türkçe 🇹🇷</span>
+        </div>
+        <div className="language-info">
+          <span className="lang-label">Çevrilen Dil:</span>
+          <span className="lang-value">English 🇬🇧</span>
+        </div>
+      </div>
+
+      {/* Chat History - Çeviri Geçmişi */}
+      <div className="chat-history-section">
+        <div className="chat-header">
+          <MessageSquare size={20} />
+          <h3>Çeviri Geçmişi</h3>
+          <button 
+            onClick={toggleFullscreen}
+            className="btn-fullscreen"
+            title="Tam Ekran"
+          >
+            ⤢ Tam Ekran
+          </button>
+        </div>
+        <div className="chat-content">
+          {translations.length === 0 ? (
+            <p className="no-messages">Henüz çeviri yok. Konuşmaya başlayın!</p>
+          ) : (
+            translations.slice().reverse().map((translation) => (
+              <div key={translation.id} className="chat-message">
+                <div className="message-header">
+                  <span className="message-user">{translation.userName}</span>
+                  <span className="message-time">
+                    {new Date(translation.timestamp).toLocaleTimeString()}
+                  </span>
+                </div>
+                <p className="message-original">{translation.originalText}</p>
+                <p className="message-translation">{translation.translatedText}</p>
+              </div>
+            ))
+          )}
         </div>
       </div>
 
